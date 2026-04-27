@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>당번 스케줄러</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
+      background: linear-gradient(135deg, #f0f4ff 0%, #faf0ff 100%);
+      min-height: 100vh;
+      padding: 28px 16px 48px;
+      color: #2d3748;
+    }
+
+    .container { max-width: 880px; margin: 0 auto; }
+
+    h1 {
+      text-align: center;
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a202c;
+      margin-bottom: 4px;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: #a0aec0;
+      margin-bottom: 20px;
+    }
+
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      border-radius: 20px;
+      padding: 6px 14px 6px 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .legend-dot {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: white;
+      font-weight: 800;
+    }
+
+    .legend-nick { font-size: 12px; font-weight: 500; color: #718096; margin-left: 2px; }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .nav-btn {
+      background: white;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 7px 18px;
+      font-size: 15px;
+      cursor: pointer;
+      color: #4a5568;
+      font-family: inherit;
+      font-weight: 600;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+
+    .nav-btn:hover { background: #edf2f7; border-color: #b2bec3; transform: translateY(-1px); }
+    .nav-btn:active { transform: translateY(0); }
+
+    .month-label {
+      font-size: 22px;
+      font-weight: 800;
+      min-width: 150px;
+      text-align: center;
+      color: #1a202c;
+      letter-spacing: -0.5px;
+    }
+
+    .calendar {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .cal-header {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      background: #2d3748;
+    }
+
+    .cal-header div {
+      text-align: center;
+      padding: 12px 0;
+      font-size: 11px;
+      font-weight: 700;
+      color: #718096;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .cal-header div:first-child { color: #fc8181; }
+    .cal-header div:last-child  { color: #63b3ed; }
+
+    .cal-body { display: grid; grid-template-columns: repeat(7, 1fr); }
+
+    .cell {
+      min-height: 100px;
+      padding: 8px 10px;
+      border-right: 1px solid #edf2f7;
+      border-bottom: 1px solid #edf2f7;
+      transition: background 0.15s;
+    }
+
+    .cell:nth-child(7n)   { border-right: none; }
+    .cell.empty           { background: #f8fafc; }
+    .cell.weekend         { background: #f8fafc; }
+    .cell.today           { background: #fffbf0; }
+    .cell.holiday         { background: #fff5f5; }
+    .cell.holiday.weekend { background: #fff0f0; }
+
+    .cell.drag-over {
+      background: #ebf8ff !important;
+      outline: 2px dashed #4299e1;
+      outline-offset: -3px;
+    }
+
+    .day-num {
+      font-size: 13px;
+      font-weight: 700;
+      color: #a0aec0;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      margin-bottom: 4px;
+    }
+
+    .cell:not(.weekend):not(.empty) .day-num { color: #4a5568; }
+    .cell:nth-child(7n+1) .day-num           { color: #fc8181 !important; }
+    .cell:nth-child(7n)   .day-num           { color: #63b3ed !important; }
+    .cell.today   .day-num { background: #ed8936; color: white !important; font-weight: 800; }
+    .cell.holiday .day-num { color: #e53e3e !important; }
+
+    .holiday-tag {
+      font-size: 10px;
+      color: #e53e3e;
+      font-weight: 700;
+      line-height: 1.3;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .badge {
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: white;
+      cursor: grab;
+      user-select: none;
+      display: inline-block;
+      line-height: 1.35;
+      transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s;
+      width: 100%;
+      text-align: center;
+    }
+
+    .badge:hover    { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.20); }
+    .badge.dragging { opacity: 0.35; transform: scale(0.94); cursor: grabbing; }
+    .badge small    { font-size: 11px; font-weight: 500; opacity: 0.88; display: block; }
+
+    .bottom-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 14px;
+      padding: 0 2px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .hint { font-size: 13px; color: #718096; }
+
+    .note {
+      text-align: center;
+      font-size: 11px;
+      color: #b0bec5;
+      margin-top: 10px;
+    }
+
+    .reset-btn {
+      background: white;
+      border: 1.5px solid #fed7d7;
+      border-radius: 10px;
+      padding: 7px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #e53e3e;
+      font-family: inherit;
+      font-weight: 700;
+      transition: all 0.15s;
+    }
+
+    .reset-btn:hover { background: #fff5f5; border-color: #fc8181; }
+
+    /* Picker popup */
+    .picker {
+      position: absolute;
+      z-index: 1000;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08);
+      padding: 6px;
+      min-width: 168px;
+      animation: popIn 0.12s ease-out;
+    }
+
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.9) translateY(-6px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .picker-opt {
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #2d3748;
+      transition: background 0.1s;
+    }
+
+    .picker-opt:hover  { background: #f7fafc; }
+    .picker-opt.active { background: #f0f9ff; }
+
+    .picker-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .picker-nick { font-size: 11px; font-weight: 500; color: #a0aec0; margin-left: 2px; }
+
+    .picker-divider { height: 1px; background: #edf2f7; margin: 4px 2px; }
+
+    .picker-reset {
+      padding: 7px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #a0aec0;
+      text-align: center;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .picker-reset:hover { background: #f7fafc; color: #718096; }
+
+    /* Connection status */
+    .conn-badge {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 12px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.3s;
+    }
+
+    .conn-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #a0aec0;
+      transition: background 0.3s;
+    }
+
+    .conn-dot.online  { background: #48bb78; }
+    .conn-dot.offline { background: #fc8181; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📋 당번 스케줄러</h1>
+    <p class="subtitle">시작: 2026년 5월 4일 (월) · 고진미 → 유지은 → 박지현 반복 · 공휴일 제외</p>
+
+    <div class="legend" id="legend"></div>
+
+    <div class="nav">
+      <button class="nav-btn" onclick="changeMonth(-1)">◀ 이전</button>
+      <div class="month-label" id="monthLabel"></div>
+      <button class="nav-btn" onclick="changeMonth(1)">다음 ▶</button>
+    </div>
+
+    <div class="calendar">
+      <div class="cal-header">
+        <div>일</div><div>월</div><div>화</div>
+        <div>수</div><div>목</div><div>금</div><div>토</div>
+      </div>
+      <div class="cal-body" id="calBody"></div>
+    </div>
+
+    <div class="bottom-bar">
+      <span class="hint">💡 뱃지 <b>클릭</b> → 당번 변경 &nbsp;|&nbsp; <b>드래그</b> → 두 날 교체</span>
+      <button class="reset-btn" onclick="resetMonth()">이번 달 초기화</button>
+    </div>
+    <p class="note">* 음력 공휴일(설날·추석·부처님오신날)은 추정값이며 실제와 다를 수 있습니다.</p>
+  </div>
+
+  <div class="conn-badge" id="connBadge">
+    <span class="conn-dot" id="connDot"></span>
+    <span id="connText">연결 중...</span>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <script>
+    const PERSONS = [
+      { name: '고진미', nick: '라라', color: '#c0397a' },
+      { name: '유지은', nick: '레아', color: '#0694a2' },
+      { name: '박지현', nick: '지은', color: '#6b46c1' },
+    ];
+
+    const START = new Date(2026, 4, 4);
+
+    const HOLIDAYS = {
+      '2026-01-01': '신정',
+      '2026-02-16': '설날 전날*', '2026-02-17': '설날*', '2026-02-18': '설날 다음날*',
+      '2026-03-01': '삼일절', '2026-03-02': '삼일절 대체',
+      '2026-05-05': '어린이날',
+      '2026-05-24': '부처님오신날*', '2026-05-25': '부처님오신날 대체*',
+      '2026-06-06': '현충일', '2026-08-15': '광복절',
+      '2026-09-25': '추석 전날*', '2026-09-26': '추석*', '2026-09-27': '추석 다음날*', '2026-09-28': '추석 대체*',
+      '2026-10-03': '개천절', '2026-10-09': '한글날', '2026-12-25': '크리스마스',
+      '2027-01-01': '신정',
+      '2027-02-05': '설날 전날*', '2027-02-06': '설날*', '2027-02-07': '설날 다음날*', '2027-02-08': '설날 대체*',
+      '2027-03-01': '삼일절',
+      '2027-05-05': '어린이날', '2027-05-13': '부처님오신날*',
+      '2027-06-06': '현충일', '2027-06-07': '현충일 대체',
+      '2027-08-15': '광복절', '2027-08-16': '광복절 대체',
+      '2027-09-14': '추석 전날*', '2027-09-15': '추석*', '2027-09-16': '추석 다음날*',
+      '2027-10-03': '개천절', '2027-10-04': '개천절 대체',
+      '2027-10-09': '한글날', '2027-12-25': '크리스마스',
+      '2028-01-01': '신정', '2028-03-01': '삼일절', '2028-05-05': '어린이날',
+      '2028-06-06': '현충일', '2028-08-15': '광복절',
+      '2028-10-03': '개천절', '2028-10-09': '한글날', '2028-12-25': '크리스마스',
+    };
+
+    // ── Firebase ───────────────────────────────────────────
+    const firebaseConfig = {
+      apiKey: "AIzaSyCnS1dlBV5ACgU6NMUgF_WEB3DS_KPYK6Q",
+      authDomain: "duty-scheduler-e384f.firebaseapp.com",
+      // Realtime Database URL: Firebase 콘솔 → Realtime Database 탭에서 확인
+      databaseURL: "https://duty-scheduler-e384f-default-rtdb.firebaseio.com",
+      projectId: "duty-scheduler-e384f",
+      storageBucket: "duty-scheduler-e384f.firebasestorage.app",
+      messagingSenderId: "1017791834903",
+      appId: "1:1017791834903:web:8291c67066316434862552"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db       = firebase.database();
+    const schRef   = db.ref('schedule');
+
+    // ── State ─────────────────────────────────────────────
+    let curYear, curMonth;
+    let schedule = {};
+    let dragFrom = null;
+
+    // ── Helpers ───────────────────────────────────────────
+    function dateKey(y, m, d) {
+      return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+
+    function parseKey(key) {
+      const [y, m, d] = key.split('-').map(Number);
+      return { y, m: m - 1, d };
+    }
+
+    function isHoliday(key) {
+      return Object.prototype.hasOwnProperty.call(HOLIDAYS, key);
+    }
+
+    function workdaysBetween(from, to) {
+      if (from >= to) return 0;
+      let count = 0;
+      const cur = new Date(from);
+      while (cur < to) {
+        const dow = cur.getDay();
+        if (dow !== 0 && dow !== 6 &&
+            !isHoliday(dateKey(cur.getFullYear(), cur.getMonth(), cur.getDate()))) count++;
+        cur.setDate(cur.getDate() + 1);
+      }
+      return count;
+    }
+
+    function defaultPerson(date) {
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const s = new Date(START.getFullYear(), START.getMonth(), START.getDate());
+      if (d.getTime() === s.getTime()) return PERSONS[0].name;
+      if (d > s) return PERSONS[workdaysBetween(s, d) % 3].name;
+      const n = workdaysBetween(d, s);
+      return PERSONS[(((-n) % 3) + 3) % 3].name;
+    }
+
+    function getPerson(y, m, d) {
+      const key = dateKey(y, m, d);
+      return schedule[key] !== undefined ? schedule[key] : defaultPerson(new Date(y, m, d));
+    }
+
+    function personObj(name) { return PERSONS.find(p => p.name === name) || PERSONS[0]; }
+
+    // ── Render ────────────────────────────────────────────
+    function renderLegend() {
+      document.getElementById('legend').innerHTML = PERSONS.map(p =>
+        `<div class="legend-item">
+          <div class="legend-dot" style="background:${p.color}">${p.nick}</div>
+          <span>${p.name}</span>
+          <span class="legend-nick">(${p.nick})</span>
+        </div>`
+      ).join('');
+    }
+
+    function render() {
+      document.getElementById('monthLabel').textContent = `${curYear}년 ${curMonth + 1}월`;
+
+      const firstDow = new Date(curYear, curMonth, 1).getDay();
+      const lastDay  = new Date(curYear, curMonth + 1, 0).getDate();
+      const today    = new Date();
+      const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
+
+      let html = '';
+      for (let i = 0; i < firstDow; i++) html += '<div class="cell empty"></div>';
+
+      for (let d = 1; d <= lastDay; d++) {
+        const dow       = new Date(curYear, curMonth, d).getDay();
+        const isWeekend = dow === 0 || dow === 6;
+        const key       = dateKey(curYear, curMonth, d);
+        const holiday   = HOLIDAYS[key];
+        const cellDate  = new Date(curYear, curMonth, d);
+        const isToday   = key === todayKey;
+        const isWorkday = !isWeekend && !holiday && cellDate >= START;
+
+        let cls = 'cell';
+        if (isWeekend) cls += ' weekend';
+        if (isToday)   cls += ' today';
+        if (holiday)   cls += ' holiday';
+
+        const holTag   = holiday ? `<div class="holiday-tag">${holiday}</div>` : '';
+        let badgeHtml  = '';
+
+        if (isWorkday) {
+          const p = personObj(getPerson(curYear, curMonth, d));
+          badgeHtml = `
+            <div class="badge"
+              style="background:${p.color}"
+              draggable="true"
+              ondragstart="onDragStart(event,'${key}')"
+              ondragend="onDragEnd(event)"
+              onclick="showPicker(event,'${key}')"
+            >${p.name}<small>${p.nick}</small></div>`;
+        }
+
+        const dropEvts = isWorkday
+          ? `ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${key}')"`
+          : '';
+
+        html += `<div class="${cls}" ${dropEvts}>
+          <div class="day-num">${d}</div>
+          ${holTag}${badgeHtml}
+        </div>`;
+      }
+
+      const trailing = (firstDow + lastDay) % 7;
+      for (let i = 0; i < (trailing ? 7 - trailing : 0); i++) html += '<div class="cell empty"></div>';
+
+      document.getElementById('calBody').innerHTML = html;
+    }
+
+    // ── Picker ────────────────────────────────────────────
+    function showPicker(e, key) {
+      e.stopPropagation();
+      closePicker();
+
+      const { y, m, d } = parseKey(key);
+      const current = getPerson(y, m, d);
+
+      const picker = document.createElement('div');
+      picker.id = 'picker';
+      picker.className = 'picker';
+      picker.onclick = ev => ev.stopPropagation();
+
+      let html = PERSONS.map(p => {
+        const active = p.name === current ? ' active' : '';
+        return `<div class="picker-opt${active}" onclick="selectPerson('${key}','${p.name}')">
+          <span class="picker-dot" style="background:${p.color}"></span>
+          <span>${p.name}</span><span class="picker-nick">(${p.nick})</span>
+        </div>`;
+      }).join('');
+
+      if (schedule[key] !== undefined) {
+        html += `<div class="picker-divider"></div>
+          <div class="picker-reset" onclick="resetDay('${key}')">↺ 기본값 복원</div>`;
+      }
+
+      picker.innerHTML = html;
+      document.body.appendChild(picker);
+
+      const tr = e.currentTarget.getBoundingClientRect();
+      const pr = picker.getBoundingClientRect();
+      let top  = tr.bottom + window.scrollY + 6;
+      let left = tr.left   + window.scrollX;
+      if (left + pr.width > window.innerWidth - 8) left = window.innerWidth - pr.width - 8;
+      if (left < 8) left = 8;
+      picker.style.top  = top  + 'px';
+      picker.style.left = left + 'px';
+
+      setTimeout(() => document.addEventListener('click', closePicker, { once: true }), 0);
+    }
+
+    function closePicker() {
+      const el = document.getElementById('picker');
+      if (el) el.remove();
+    }
+
+    // ── Firebase 쓰기 ──────────────────────────────────────
+    function selectPerson(key, name) {
+      schRef.child(key).set(name);
+      closePicker();
+    }
+
+    function resetDay(key) {
+      schRef.child(key).remove();
+      closePicker();
+    }
+
+    // ── Drag & Drop ───────────────────────────────────────
+    function onDragStart(e, key) {
+      dragFrom = key;
+      e.target.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function onDragEnd(e) { e.target.classList.remove('dragging'); }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      e.currentTarget.classList.add('drag-over');
+    }
+
+    function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+
+    function onDrop(e, toKey) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      if (!dragFrom || dragFrom === toKey) { dragFrom = null; return; }
+
+      const { y: fy, m: fm, d: fd } = parseKey(dragFrom);
+      const { y: ty, m: tm, d: td } = parseKey(toKey);
+
+      const updates = {};
+      updates[dragFrom] = getPerson(fy, fm, fd);
+      updates[toKey]    = getPerson(ty, tm, td);
+      schRef.update(updates);
+
+      dragFrom = null;
+    }
+
+    // ── Navigation ────────────────────────────────────────
+    function changeMonth(delta) {
+      curMonth += delta;
+      if (curMonth < 0)  { curMonth = 11; curYear--; }
+      if (curMonth > 11) { curMonth = 0;  curYear++; }
+      render();
+    }
+
+    function resetMonth() {
+      if (!confirm(`${curYear}년 ${curMonth + 1}월 당번 배정을 초기화할까요?`)) return;
+      const prefix  = `${curYear}-${String(curMonth + 1).padStart(2, '0')}-`;
+      const updates = {};
+      Object.keys(schedule).forEach(k => { if (k.startsWith(prefix)) updates[k] = null; });
+      if (Object.keys(updates).length) schRef.update(updates);
+    }
+
+    // ── Init ──────────────────────────────────────────────
+    function init() {
+      const now = new Date();
+      curYear  = now.getFullYear();
+      curMonth = now.getMonth();
+      renderLegend();
+      render();
+
+      // 실시간 동기화
+      schRef.on('value', snapshot => {
+        schedule = snapshot.val() || {};
+        render();
+      });
+
+      // 연결 상태 표시
+      db.ref('.info/connected').on('value', snapshot => {
+        const online = snapshot.val();
+        document.getElementById('connDot').className  = 'conn-dot ' + (online ? 'online' : 'offline');
+        document.getElementById('connText').textContent = online ? '실시간 연결됨' : '오프라인';
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
