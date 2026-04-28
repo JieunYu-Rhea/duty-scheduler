@@ -618,9 +618,16 @@
 
     // ── Init ──────────────────────────────────────────────
     function init() {
-      const now = new Date();
-      curYear  = now.getFullYear();
-      curMonth = now.getMonth();
+      const now   = new Date();
+      const nowYM = now.getFullYear() * 12 + now.getMonth();
+      const stYM  = START.getFullYear() * 12 + START.getMonth();
+      if (nowYM < stYM) {
+        curYear  = START.getFullYear();
+        curMonth = START.getMonth();
+      } else {
+        curYear  = now.getFullYear();
+        curMonth = now.getMonth();
+      }
       renderLegend();
       render();
 
