@@ -310,6 +310,70 @@
 
     .conn-dot.online  { background: #48bb78; }
     .conn-dot.offline { background: #fc8181; }
+
+    .edit-btn {
+      background: white;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 7px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #4a5568;
+      font-family: inherit;
+      font-weight: 700;
+      transition: all 0.15s;
+    }
+    .edit-btn:hover { background: #f7fafc; }
+    .edit-btn.active { background: #ebf8ff; border-color: #90cdf4; color: #2b6cb0; }
+
+    .pin-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 2000;
+    }
+    .pin-modal {
+      background: white;
+      border-radius: 20px;
+      padding: 28px 24px 20px;
+      width: 280px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+    .pin-modal h3 { font-size: 16px; color: #2d3748; margin-bottom: 6px; }
+    .pin-modal p  { font-size: 13px; color: #a0aec0; margin-bottom: 16px; }
+    .pin-input {
+      width: 100%;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 22px;
+      text-align: center;
+      letter-spacing: 10px;
+      outline: none;
+      font-family: monospace;
+      margin-bottom: 12px;
+      transition: border-color 0.15s;
+      box-sizing: border-box;
+    }
+    .pin-input:focus { border-color: #90cdf4; }
+    .pin-input.error { border-color: #fc8181; animation: shake 0.3s; }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25%     { transform: translateX(-6px); }
+      75%     { transform: translateX(6px); }
+    }
+    .pin-confirm {
+      width: 100%; background: #4299e1; color: white;
+      border: none; border-radius: 10px; padding: 10px;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      font-family: inherit; margin-bottom: 8px; transition: background 0.15s;
+    }
+    .pin-confirm:hover { background: #3182ce; }
+    .pin-cancel {
+      background: none; border: none; color: #a0aec0;
+      font-size: 13px; cursor: pointer; font-family: inherit;
+    }
   </style>
 </head>
 <body>
@@ -334,10 +398,26 @@
     </div>
 
     <div class="bottom-bar">
-      <span class="hint">💡 뱃지 <b>클릭</b> → 당번 변경 &nbsp;|&nbsp; <b>드래그</b> → 두 날 교체</span>
-      <button class="reset-btn" onclick="resetMonth()">이번 달 초기화</button>
+      <span class="hint" id="hintText">👁 보기 전용 모드</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="reset-btn" id="resetBtn" onclick="resetMonth()" style="display:none">이번 달 초기화</button>
+        <button class="edit-btn" id="editBtn" onclick="toggleEdit()">🔒 편집</button>
+      </div>
     </div>
     <p class="note">* 음력 공휴일(설날·추석·부처님오신날)은 추정값이며 실제와 다를 수 있습니다.</p>
+  </div>
+
+  <!-- PIN Modal -->
+  <div class="pin-overlay" id="pinOverlay" style="display:none" onclick="closePin()">
+    <div class="pin-modal" onclick="event.stopPropagation()">
+      <h3>🔐 편집 모드</h3>
+      <p>팀원만 수정할 수 있어요</p>
+      <input class="pin-input" id="pinInput" type="password" maxlength="4" placeholder="••••"
+        oninput="if(this.value.length===4) confirmPin()"
+        onkeydown="if(event.key==='Enter') confirmPin()">
+      <button class="pin-confirm" onclick="confirmPin()">확인</button>
+      <button class="pin-cancel" onclick="closePin()">취소</button>
+    </div>
   </div>
 
   <div class="conn-badge" id="connBadge">
@@ -364,9 +444,10 @@
       '2026-03-01': '삼일절', '2026-03-02': '삼일절 대체',
       '2026-05-05': '어린이날',
       '2026-05-24': '부처님오신날*', '2026-05-25': '부처님오신날 대체*',
-      '2026-06-06': '현충일', '2026-08-15': '광복절',
-      '2026-09-25': '추석 전날*', '2026-09-26': '추석*', '2026-09-27': '추석 다음날*', '2026-09-28': '추석 대체*',
-      '2026-10-03': '개천절', '2026-10-09': '한글날', '2026-12-25': '크리스마스',
+      '2026-06-03': '지방선거일', '2026-06-06': '현충일', '2026-06-08': '현충일 대체',
+      '2026-08-15': '광복절', '2026-08-17': '광복절 대체',
+      '2026-09-24': '추석 전날*', '2026-09-25': '추석*', '2026-09-26': '추석 다음날*', '2026-09-28': '추석 대체*',
+      '2026-10-03': '개천절', '2026-10-05': '개천절 대체', '2026-10-09': '한글날', '2026-12-25': '크리스마스',
       '2027-01-01': '신정',
       '2027-02-05': '설날 전날*', '2027-02-06': '설날*', '2027-02-07': '설날 다음날*', '2027-02-08': '설날 대체*',
       '2027-03-01': '삼일절',
@@ -375,8 +456,8 @@
       '2027-08-15': '광복절', '2027-08-16': '광복절 대체',
       '2027-09-14': '추석 전날*', '2027-09-15': '추석*', '2027-09-16': '추석 다음날*',
       '2027-10-03': '개천절', '2027-10-04': '개천절 대체',
-      '2027-10-09': '한글날', '2027-12-25': '크리스마스',
-      '2028-01-01': '신정', '2028-03-01': '삼일절', '2028-05-05': '어린이날',
+      '2027-10-09': '한글날', '2027-10-11': '한글날 대체', '2027-12-25': '크리스마스', '2027-12-27': '크리스마스 대체',
+      '2028-01-01': '신정', '2028-01-03': '신정 대체', '2028-03-01': '삼일절', '2028-05-05': '어린이날',
       '2028-06-06': '현충일', '2028-08-15': '광복절',
       '2028-10-03': '개천절', '2028-10-09': '한글날', '2028-12-25': '크리스마스',
     };
@@ -401,6 +482,54 @@
     let curYear, curMonth;
     let schedule = {};
     let dragFrom = null;
+    let editMode = false;
+
+    // ── Edit Mode / PIN ───────────────────────────────────
+    function toggleEdit() {
+      if (editMode) {
+        editMode = false;
+        updateEditUI();
+      } else {
+        document.getElementById('pinOverlay').style.display = 'flex';
+        setTimeout(() => document.getElementById('pinInput').focus(), 50);
+      }
+    }
+
+    function confirmPin() {
+      const input = document.getElementById('pinInput');
+      if (input.value === '0989') {
+        editMode = true;
+        closePin();
+        updateEditUI();
+      } else {
+        input.classList.add('error');
+        input.value = '';
+        setTimeout(() => input.classList.remove('error'), 400);
+        input.focus();
+      }
+    }
+
+    function closePin() {
+      document.getElementById('pinOverlay').style.display = 'none';
+      document.getElementById('pinInput').value = '';
+    }
+
+    function updateEditUI() {
+      const btn   = document.getElementById('editBtn');
+      const hint  = document.getElementById('hintText');
+      const reset = document.getElementById('resetBtn');
+      if (editMode) {
+        btn.textContent = '🔓 편집 중';
+        btn.classList.add('active');
+        hint.innerHTML  = '💡 뱃지 <b>클릭</b> → 당번 변경 &nbsp;|&nbsp; <b>드래그</b> → 두 날 교체';
+        reset.style.display = '';
+      } else {
+        btn.textContent = '🔒 편집';
+        btn.classList.remove('active');
+        hint.textContent = '👁 보기 전용 모드';
+        reset.style.display = 'none';
+      }
+    }
 
     // ── Helpers ───────────────────────────────────────────
     function dateKey(y, m, d) {
@@ -515,6 +644,7 @@
     // ── Picker ────────────────────────────────────────────
     function showPicker(e, key) {
       e.stopPropagation();
+      if (!editMode) return;
       closePicker();
 
       const { y, m, d } = parseKey(key);
@@ -571,6 +701,7 @@
 
     // ── Drag & Drop ───────────────────────────────────────
     function onDragStart(e, key) {
+      if (!editMode) { e.preventDefault(); return; }
       dragFrom = key;
       e.target.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
@@ -610,6 +741,7 @@
     }
 
     function resetMonth() {
+      if (!editMode) return;
       if (!confirm(`${curYear}년 ${curMonth + 1}월 당번 배정을 초기화할까요?`)) return;
       const prefix  = `${curYear}-${String(curMonth + 1).padStart(2, '0')}-`;
       const updates = {};
