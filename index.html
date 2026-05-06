@@ -532,6 +532,7 @@
         hint.textContent = '👁 보기 전용 모드';
         reset.style.display = 'none';
       }
+      render();
     }
 
     // ── Helpers ───────────────────────────────────────────
@@ -728,8 +729,8 @@
       const { y: ty, m: tm, d: td } = parseKey(toKey);
 
       const updates = {};
-      updates[dragFrom] = getPerson(fy, fm, fd);
-      updates[toKey]    = getPerson(ty, tm, td);
+      updates[dragFrom] = getPerson(ty, tm, td);
+      updates[toKey]    = getPerson(fy, fm, fd);
       schRef.update(updates);
 
       dragFrom = null;
