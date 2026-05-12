@@ -1,0 +1,124 @@
+name: Teams 당번 알림
+
+on:
+  schedule:
+    - cron: '0 0 * * 1-5'   # 평일 오전 9시 KST (UTC 0:00 = KST 9:00)
+  workflow_dispatch:          # 수동 테스트용
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 당번 확인 및 Teams 알림 전송
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          python3 << 'PYEOF'
+          import datetime, urllib.request, json, os, sys
+
+          # ── 오늘 날짜 (KST = UTC+9) ───────────────────────────
+          today = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).date()
+          today_str = today.strftime('%Y-%m-%d')
+          print(f"오늘 날짜 (KST): {today_str}")
+
+          # ── 공휴일 목록 ───────────────────────────────────────
+          HOLIDAYS = {
+            '2026-01-01',
+            '2026-02-16','2026-02-17','2026-02-18',
+            '2026-03-01','2026-03-02',
+            '2026-05-05','2026-05-24','2026-05-25',
+            '2026-06-03','2026-06-06',
+            '2026-08-15','2026-08-17',
+            '2026-09-24','2026-09-25','2026-09-26','2026-09-28',
+            '2026-10-03','2026-10-05','2026-10-09','2026-12-25',
+            '2027-01-01',
+            '2027-02-06','2027-02-07','2027-02-08','2027-02-09',
+            '2027-03-01',
+            '2027-05-05','2027-05-13',
+            '2027-06-06','2027-06-07',
+            '2027-08-15','2027-08-16',
+            '2027-09-14','2027-09-15','2027-09-16',
+            '2027-10-03','2027-10-04',
+            '2027-10-09','2027-10-11',
+            '2027-12-25','2027-12-27',
+            '2028-01-01','2028-01-03',
+            '2028-01-26','2028-01-27','2028-01-28',
+            '2028-03-01',
+            '2028-05-02','2028-05-05',
+            '2028-06-06','2028-08-15',
+            '2028-10-02','2028-10-03','2028-10-04','2028-10-05',
+            '2028-10-09','2028-12-25',
+          }
+
+          # ── 주말·공휴일이면 종료 ──────────────────────────────
+          if today.weekday() >= 5:
+            print("오늘은 주말 — 알림 없음"); sys.exit(0)
+          if today_str in HOLIDAYS:
+            print(f"오늘은 공휴일 — 알림 없음"); sys.exit(0)
+
+          # ── Firebase에서 당번 조회 ────────────────────────────
+          PERSONS = [
+            {'name': '고진미', 'nick': '라라', 'emoji': '🌸'},
+            {'name': '유지은', 'nick': '레아', 'emoji': '🌊'},
+            {'name': '박지현', 'nick': '지은', 'emoji': '💜'},
+          ]
+          START = datetime.date(2026, 5, 6)
+
+          firebase_url = (
+            f"https://duty-scheduler-e384f-default-rtdb.firebaseio.com"
+            f"/schedule/{today_str}.json"
+          )
+          person_name = None
+          try:
+            with urllib.request.urlopen(firebase_url, timeout=10) as resp:
+              raw = json.loads(resp.read().decode())
+              if raw and raw != 'null':
+                person_name = raw
+                print(f"Firebase에서 조회: {person_name}")
+          except Exception as e:
+            print(f"Firebase 조회 실패 ({e}), 기본값 계산으로 대체")
+
+          # ── Firebase 데이터 없으면 기본 순서로 계산 ───────────
+          if not person_name:
+            def workdays_between(from_d, to_d):
+              count, cur = 0, from_d
+              while cur < to_d:
+                if cur.weekday() < 5 and cur.strftime('%Y-%m-%d') not in HOLIDAYS:
+                  count += 1
+                cur += datetime.timedelta(days=1)
+              return count
+
+            if today == START:
+              idx = 0
+            elif today > START:
+              idx = workdays_between(START, today) % 3
+            else:
+              idx = 0
+            person_name = PERSONS[idx]['name']
+            print(f"기본값 계산: {person_name}")
+
+          # ── 담당자 정보 매핑 ──────────────────────────────────
+          person = next((p for p in PERSONS if p['name'] == person_name), PERSONS[0])
+          weekday_kr = ['월', '화', '수', '목', '금'][today.weekday()]
+
+          # ── Teams 메시지 전송 ─────────────────────────────────
+          webhook_url = os.environ.get('TEAMS_WEBHOOK_URL', '')
+          if not webhook_url:
+            print("TEAMS_WEBHOOK_URL 미설정"); sys.exit(1)
+
+          text = (
+            f"📋 오늘의 운영업무 당번\n"
+            f"{today.month}월 {today.day}일 ({weekday_kr}요일) "
+            f"{person['emoji']} {person['name']} ({person['nick']})"
+          )
+          payload = {"message": text}
+
+          data = json.dumps(payload).encode('utf-8')
+          req = urllib.request.Request(
+            webhook_url, data=data,
+            headers={'Content-Type': 'application/json'}, method='POST'
+          )
+          with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f"✅ Teams 알림 전송 완료: {person['name']} ({person['nick']})")
+          PYEOF
