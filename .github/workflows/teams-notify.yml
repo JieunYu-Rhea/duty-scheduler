@@ -112,7 +112,7 @@ jobs:
             f"{today.month}월 {today.day}일 ({weekday_kr}요일) "
             f"{person['emoji']} {person['name']} ({person['nick']})"
           )
-          payload = {"message": text}
+          payload = {"type": "message", "text": text}
 
           data = json.dumps(payload).encode('utf-8')
           req = urllib.request.Request(
