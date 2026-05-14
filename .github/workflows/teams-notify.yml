@@ -2,7 +2,9 @@ name: Teams 당번 알림
 
 on:
   schedule:
-    - cron: '0 0 * * 1-5'   # 평일 오전 9시 KST (UTC 0:00 = KST 9:00)
+    - cron: '0 0 * * 1-5'    # 09:00 KST
+    - cron: '30 0 * * 1-5'   # 09:30 KST (재시도)
+    - cron: '0 1 * * 1-5'    # 10:00 KST (재시도)
   workflow_dispatch:          # 수동 테스트용
 
 jobs:
@@ -56,6 +58,20 @@ jobs:
             print("오늘은 주말 — 알림 없음"); sys.exit(0)
           if today_str in HOLIDAYS:
             print(f"오늘은 공휴일 — 알림 없음"); sys.exit(0)
+
+          # ── 오늘 이미 알림 보냈는지 확인 (중복 방지) ──────────
+          notify_flag_url = (
+            f"https://duty-scheduler-e384f-default-rtdb.firebaseio.com"
+            f"/notified/{today_str}.json"
+          )
+          try:
+            with urllib.request.urlopen(notify_flag_url, timeout=10) as resp:
+              already = json.loads(resp.read().decode())
+              if already == True:
+                print(f"오늘 {today_str} 이미 알림 발송됨 — 중복 방지로 종료")
+                sys.exit(0)
+          except Exception as e:
+            print(f"알림 플래그 확인 실패 ({e}), 계속 진행")
 
           # ── Firebase에서 당번 조회 ────────────────────────────
           PERSONS = [
@@ -143,4 +159,13 @@ jobs:
           )
           with urllib.request.urlopen(req, timeout=10) as resp:
             print(f"✅ Teams 알림 전송 완료: {person['name']} ({person['nick']})")
+
+          # ── 오늘 알림 완료 플래그 Firebase에 기록 ─────────────
+          flag_data = json.dumps(True).encode('utf-8')
+          flag_req = urllib.request.Request(
+            notify_flag_url, data=flag_data,
+            headers={'Content-Type': 'application/json'}, method='PUT'
+          )
+          urllib.request.urlopen(flag_req, timeout=10)
+          print(f"✅ 알림 플래그 기록 완료")
           PYEOF
